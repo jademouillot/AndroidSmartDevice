@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">AndroidSmartDevice</string>
+    <string name="title_activity_scan">ScanActivity</string>
+    <string name="title_activity_scan_ble">ScanActivityBLE</string>
+    <string name="title_activity_splash">SplashActivity</string>
+    <string name="title_activity_device_details">DeviceDetailsActivity</string>
+</resources>
