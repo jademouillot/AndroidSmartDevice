@@ -1,7 +1,5 @@
 package fr.isen.mouillot.androidsmartdevice
 
-//SCANCOMPOSABLEINTERACTION
-
 import android.app.Activity
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
@@ -60,77 +58,138 @@ import android.bluetooth.le.BluetoothLeScanner
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.core.content.ContextCompat.startActivity
+import java.security.AllPermission
 
 class ScanActivityBLE : ComponentActivity() {
 
-    private lateinit var bluetoothAdapter: BluetoothAdapter
-    private lateinit var bluetoothLeScanner: BluetoothLeScanner
+    private val leScanCallback= object : ScanCallback() {
+        @SuppressLint("MissingPermission")
+        override fun onScanResult(callbackType: Int, result: ScanResult) {
+            super.onScanResult(callbackType, result)
+            //Log.e("ScanCallbackbiis", "Scancallback fonction : ${result.device.name}")
+            Log.e("ScanCallbackbiis", "Scancallback fonction : ")
+            val device = result.device
+            if (!detectedDevices.contains(device)) {
+                detectedDevices.add(device)
+            }
+
+        }
+        override fun onScanFailed(errorCode: Int) {
+            super.onScanFailed(errorCode)
+            // Ajoutez ici le code pour gérer l'erreur de scan
+            Log.e("ScanCallbackbiiis", "Scan failed with error code: $errorCode")
+            Toast.makeText(this@ScanActivityBLE, "erreur callback", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun isAllPermissionsGranted() = getAllPermissionsForBLE().all{
+        ActivityCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun getAllPermissionsForBLE(): Array<String> {
+        var AllPermissions = arrayOf(
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.BLUETOOTH_ADMIN
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            AllPermissions = AllPermissions.plus(
+                arrayOf(
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.BLUETOOTH_ADMIN
+                )
+            )
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            AllPermissions = AllPermissions.plus(
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            )
+        }
+        return AllPermissions
+    }
+
+    // Demande les autorisations nécessaires
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun requestPermissions() {
+        requestPermissionLauncher.launch(
+/*
+            arrayOf(
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.BLUETOOTH_ADMIN,
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.BLUETOOTH_CONNECT
+                //Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            )
+*/
+            getAllPermissionsForBLE()
+        )
+    }
+
+    private val requestPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            if (permissions.all { it.value }) {
+                // Toutes les autorisations sont accordées
+                hasPermission = true
+            } else {
+                // Au moins une autorisation a été refusée
+            }
+        }
+
+    private var hasPermission by mutableStateOf(false)
+    private var isPlaying by mutableStateOf(false)
     private val REQUEST_ENABLE_BT = 1
-    private val detectedDevices = mutableListOf<BluetoothDevice>()
+
+    private val bluetoothAdapter: BluetoothAdapter? by lazy(LazyThreadSafetyMode.NONE) {
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        bluetoothManager.adapter
+    }
+
+    private val bluetoothLeScanner: BluetoothLeScanner? by lazy(LazyThreadSafetyMode.NONE) {
+        bluetoothAdapter?.bluetoothLeScanner
+    }
+
+    private var detectedDevices: MutableList<BluetoothDevice> = mutableListOf()
+
+    private val SCANPERIOD: Long = 10000
 
     private val handler = Handler()
-    private var isPlaying by mutableStateOf(false)
-    private var scanStarted by mutableStateOf(false)
-    private var scanning = false
-    private val sCANPERIOD: Long = 10000
 
-    private val detectedDevicesState = mutableStateOf<List<BluetoothDevice>>(emptyList())
-
+    @SuppressLint("MissingPermission")
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
-
-        super.onCreate(savedInstanceState)
-
-// Initialise bluetoothAdapter
-        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-
-        // Initialise bluetoothLeScanner
-        bluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
-        // Déclaration de la variable bluetoothAdapter
-        //val bluetoothAdapter: BluetoothAdapter? by lazy {
-            // Initialisation de bluetoothAdapter en utilisant BluetoothManager
-          //  val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-            //bluetoothManager.adapter
-        //}
-
-        val bluetoothManager = this.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        val bluetoothAdapter = bluetoothManager.adapter
 
         val packageManager = this.packageManager
         val hasBluetoothLE = packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)
 
-        val bluetoothPermission = Manifest.permission.BLUETOOTH
-        val bluetoothAdminPermission = Manifest.permission.BLUETOOTH_ADMIN
-        val locationPermission = Manifest.permission.ACCESS_FINE_LOCATION
-        val bluetoothScanPermission = Manifest.permission.BLUETOOTH_SCAN
-        val bluetoothConnectPermission = Manifest.permission.BLUETOOTH_CONNECT
+        super.onCreate(savedInstanceState)
 
-        val hasBluetoothPermission = ContextCompat.checkSelfPermission(this, bluetoothPermission) == PackageManager.PERMISSION_GRANTED
-        val hasBluetoothAdminPermission = ContextCompat.checkSelfPermission(this, bluetoothAdminPermission) == PackageManager.PERMISSION_GRANTED
-        val hasLocationPermission = ContextCompat.checkSelfPermission(this, locationPermission) == PackageManager.PERMISSION_GRANTED
-        val hasBluetoothScanPermission = ContextCompat.checkSelfPermission(this, bluetoothScanPermission) == PackageManager.PERMISSION_GRANTED
-        val hasBluetoothConnectPermission = ContextCompat.checkSelfPermission(this, bluetoothConnectPermission) == PackageManager.PERMISSION_GRANTED
+        // Demander les autorisations si elles ne sont pas déjà accordées
+        if (!isAllPermissionsGranted()) {
+            requestPermissions()
+        } else {
+            // Autorisations déjà accordées
+            hasPermission = true
+        }
 
-        val rEQUESTBLUETOOTHPERMISSION = 123 // Remplacez 123 par la valeur de votre choix
-
-        // Vérification des permissions Bluetooth
-        if (!hasBluetoothPermission || !hasBluetoothAdminPermission || !hasBluetoothScanPermission || !hasLocationPermission || !hasBluetoothConnectPermission) {
-            // Si les permissions Bluetooth nécessaires ne sont pas accordées, demandez-les à l'utilisateur
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(
-                    bluetoothPermission,
-                    bluetoothAdminPermission,
-                    bluetoothScanPermission,
-                    bluetoothConnectPermission,
-                    locationPermission
-                ),
-                rEQUESTBLUETOOTHPERMISSION
-            )
+        if (hasBluetoothLE) {
+            Toast.makeText(this, "Prise en charge du BLE, vérification s'il est activé et permis", Toast.LENGTH_SHORT).show()
+            if (bluetoothAdapter != null && bluetoothAdapter?.isEnabled == true) {
+                Toast.makeText(this, "BLE activé", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "BLE pas activé", Toast.LENGTH_SHORT).show()
+                val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT)
+            }
+        } else {
+            Toast.makeText(this, "Pas de prise en charge du BLE sur cet appareil, vous ne pouvez pas l'utiliser", Toast.LENGTH_SHORT).show()
         }
 
         setContent {
@@ -140,31 +199,10 @@ class ScanActivityBLE : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
+                    val context = LocalContext.current
+
                     Column {
                         TopBarBLE("AndroidSmartDevice")
-
-                        val context = LocalContext.current
-
-                        if (hasBluetoothLE) {
-
-                            Toast.makeText(context, "Prise en charge du BLE, vérification s'il est activé et permis", Toast.LENGTH_SHORT).show()
-
-                            if (bluetoothAdapter != null && bluetoothAdapter.isEnabled) {
-
-                                Toast.makeText(context, "BLE activé", Toast.LENGTH_SHORT).show()
-
-                            } else {
-                                Toast.makeText(context, "BLE pas activé", Toast.LENGTH_SHORT).show()
-
-                                val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-                                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT)
-                                ActivityCompat.requestPermissions(context as Activity, arrayOf(bluetoothPermission, bluetoothAdminPermission, bluetoothScanPermission, bluetoothConnectPermission, locationPermission), rEQUESTBLUETOOTHPERMISSION)
-                            }
-
-                        } else {
-                            // Le dispositif ne prend pas en charge Bluetooth Low Energy
-                            Text(text = "Pas de prise en charge du BLE sur cet appareil, vous ne pouvez pas l'utiliser")
-                        }
 
                         Column {
                             Spacer(modifier = Modifier.height(16.dp)) // Ajouter un espace horizontal
@@ -179,87 +217,79 @@ class ScanActivityBLE : ComponentActivity() {
                                 //modifier = Modifier.align(Alignment.CenterHorizontally) // Alignement du texte au centre
                             )
                             Spacer(modifier = Modifier.height(10.dp)) // Espacement horizontal de 8 DP
-                            PlayPauseButton_ScanBLE(onPlayClick = { isPlaying = true }, onStopClick = { isPlaying = false })
-                            scanLeDevice()
-                            // Afficher la liste des appareils détectés
-                            DeviceList(devices = detectedDevicesState.value, isVisible = scanStarted)
+                        }
+                        if (hasPermission) {
+                            Log.e("Permission", "Permission accordées")
+
+                            PlayPauseButton_ScanBLE(
+                                isPlaying,
+                                onPlayClick = { isPlaying = true },
+                                onStopClick = { isPlaying = false }
+                            )
+
+                            if (isPlaying) {
+                                scanLeDeviceWithPermission(isPlaying)
+                            }
+                            DeviceList(devices = detectedDevices)
+
+                        } else {
+                            Log.e("Permission", "Pas de permission, pas de Scan BLE")
                         }
                     }
-
                 }
             }
-        }
-
-    }
-
-    // Modifiez votre fonction scanLeDevice() pour démarrer ou arrêter le scan en fonction de la valeur de isPlaying
-    @SuppressLint("MissingPermission")
-    private fun scanLeDevice() {
-        if (isPlaying) {
-            startScan()
-            scanStarted = true
-        } else {
-            stopScan()
-        }
-    }
-
-    // Fonction pour démarrer le scan
-    @SuppressLint("MissingPermission")
-    private fun startScan() {
-        if (!scanning) {
-            handler.postDelayed({
-                scanning = false
-                bluetoothLeScanner.stopScan(leScanCallback)
-            }, sCANPERIOD)
-            scanning = true
-            bluetoothLeScanner.startScan(leScanCallback)
-            Log.e("ScanCallback", "Scan started")
-        }
-    }
-
-    // Fonction pour arrêter le scan
-    @SuppressLint("MissingPermission")
-    private fun stopScan() {
-        if (scanning) {
-            scanning = false
-            bluetoothLeScanner.stopScan(leScanCallback)
-            Log.e("ScanCallbackbis", "Scan stopped")
         }
     }
 
     // Device scan callback.
-    val leScanCallback: ScanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            Log.e("ScanCallbackbiis", "Scancallback fonction")
-            val device = result.device
-            if (!detectedDevices.contains(device)) {
-                detectedDevices.add(device)
-                detectedDevicesState.value = detectedDevices.toList() // Met à jour l'état Compose
-            }
-        }
-        override fun onScanFailed(errorCode: Int) {
-            super.onScanFailed(errorCode)
-            // Ajoutez ici le code pour gérer l'erreur de scan
-            Log.e("ScanCallbackbiiis", "Scan failed with error code: $errorCode")
+
+    @Composable
+    @SuppressLint("MissingPermission")
+    private fun scanLeDeviceWithPermission(enable: Boolean) {
+        bluetoothAdapter?.bluetoothLeScanner?.apply {
+            //if (enable) {
+                //if (!isPlaying) {
+                    if (enable) {
+                        handler.postDelayed({
+                            isPlaying = false
+                            Log.e("handler","apres le false")
+                            bluetoothLeScanner?.stopScan(leScanCallback)
+                            Log.e("handler","apres le stopscan")
+                        }, SCANPERIOD)
+                        isPlaying = true
+                        Log.e("handler","sortie du handler")
+                        bluetoothLeScanner?.startScan(leScanCallback)
+                        //DeviceList(devices = detectedDevices)
+                        Log.e("handler","apres le startscan")
+                        detectedDevices.clear()
+                        //Log.e("ScanCallback", "Scan started")
+                        //DeviceList(devices = detectedDevices)
+                    } else {
+                        isPlaying = false
+                        Log.e("else","else")
+                        bluetoothLeScanner?.stopScan(leScanCallback)
+                    }
+            DeviceList(devices = detectedDevices)
         }
     }
 
+    @SuppressLint("MissingPermission")
     override fun onDestroy() {
         super.onDestroy()
-        stopScan()
+        bluetoothLeScanner?.stopScan(leScanCallback)
     }
 
+    @SuppressLint("MissingPermission")
     override fun onPause() {
         super.onPause()
-        stopScan()
+        bluetoothLeScanner?.stopScan(leScanCallback)
     }
+
 }
 
 @Composable
-fun PlayPauseButton_ScanBLE(onPlayClick: () -> Unit, onStopClick: () -> Unit) {
-    var isPlaying by remember { mutableStateOf(false) }
+fun PlayPauseButton_ScanBLE(isPlaying: Boolean, onPlayClick: () -> Unit, onStopClick: () -> Unit) {
     var scanCompleted by remember { mutableStateOf(false) }
-    //var scanResults by remember { mutableStateOf(mutableListOf<String>()) }
     val imageRes =
         if (isPlaying) R.drawable.baseline_arrow_outward_24 else R.drawable.baseline_arrow_forward_24
     val buttonText =
@@ -269,16 +299,12 @@ fun PlayPauseButton_ScanBLE(onPlayClick: () -> Unit, onStopClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally, // Centrer horizontalement le contenu
         modifier = Modifier
             .clickable {
-                isPlaying = !isPlaying
                 if (isPlaying) {
-                    // Début du scan
-                    onPlayClick() // Démarrer le scan
-                    scanCompleted = false
-
-                } else {
-                    // Fin du scan
-                    onStopClick() // Arreter le scan
+                    onStopClick() // Si c'est en lecture, arrêtez-la
                     scanCompleted = true
+                } else {
+                    onPlayClick() // Si ce n'est pas en lecture, commencez
+                    scanCompleted = false
                 }
             }
             .padding(8.dp),
@@ -354,26 +380,21 @@ fun TopBarBLE(title: String) {
 
 @SuppressLint("MissingPermission")
 @Composable
-fun DeviceList(devices: List<BluetoothDevice>, isVisible: Boolean) {
-    if (isVisible) {
-        val context = LocalContext.current
-        Column {
-            Text(text = "Appareils détectés :")
-            devices.forEach { device ->
-                ClickableText(
-                    text = buildAnnotatedString {
-                        append(device.name ?: "Unknown device")
-                    },
-                    onClick = {
-                            val intent = Intent(context, DeviceDetailsActivity::class.java).apply {
-                                putExtra("device_name", device.name)
-                            }
-                            //startActivity(intent)
-
+fun DeviceList(devices: List<BluetoothDevice>) {
+    var detectedDevices by remember { mutableStateOf(devices) } // Initialisation de detectedDevices avec remember
+    val context = LocalContext.current
+    Text(text = "Appareils détectés :")
+    LazyColumn {
+        items(detectedDevices) { device ->
+            Text(
+                text = device.address ?: "Unknown device",
+                modifier = Modifier.clickable {
+                    val intent = Intent(context, DeviceDetailsActivity::class.java).apply {
+                        putExtra("device", device.address)
                     }
-                    //style = SpanStyle(textDecoration = TextDecoration.Underline)
-                )
-            }
+                    context.startActivity(intent)
+                }
+            )
         }
     }
 }
