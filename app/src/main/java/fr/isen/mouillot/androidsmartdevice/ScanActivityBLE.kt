@@ -62,6 +62,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.core.content.ContextCompat.startActivity
@@ -73,19 +74,24 @@ class ScanActivityBLE : ComponentActivity() {
         @SuppressLint("MissingPermission")
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             super.onScanResult(callbackType, result)
-            //Log.e("ScanCallbackbiis", "Scancallback fonction : ${result.device.name}")
-            Log.e("ScanCallbackbiis", "Scancallback fonction : ")
             val device = result.device
             val rssi = result.rssi // Obtenez le RSSI de l'appareil
             val deviceWithRssi = Pair(device, rssi) // Créez une paire avec l'appareil et le RSSI
+
             if(device.name != null) {
-                if (!detectedDevices.contains(deviceWithRssi)) {
+                // Vérifiez si l'appareil est déjà dans la liste
+                val existingDevice = detectedDevices.find { it.first.address == device.address }
+                if (existingDevice != null) {
+                    // Si l'appareil est déjà dans la liste, mettez à jour le RSSI
+                    val index = detectedDevices.indexOf(existingDevice)
+                    detectedDevices[index] = deviceWithRssi
+                } else {
+                    // Sinon, ajoutez l'appareil à la liste
                     detectedDevices.add(deviceWithRssi)
-                //}else{
-                  //  detectedDevices.
                 }
             }
         }
+
         override fun onScanFailed(errorCode: Int) {
             super.onScanFailed(errorCode)
             // Ajoutez ici le code pour gérer l'erreur de scan
@@ -393,25 +399,37 @@ fun DeviceList(devices: List<Pair<BluetoothDevice, Int>>) {
     LazyColumn {
         items(detectedDevices) { (device, rssi) ->
             Row {
-                Text(
-                    text = "RSSI: $rssi",
+                Box(
                     modifier = Modifier
+                        .padding(start = 8.dp)
                         .clickable {
                             val intent = Intent(context, DeviceDetailsActivity::class.java).apply {
                                 putExtra("deviceAddress", device.address)
                             }
                             context.startActivity(intent)
                         }
-                        .padding(start = 8.dp)
-                )
+                        .size(48.dp)
+                        .background(
+                            color = calculateColorForRssi(rssi),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "RSSI: $rssi",
+                        style = TextStyle(color = Color.White),
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
                 Column {
                     Text(
                         text = "Name : ${device.name}",
                         modifier = Modifier
                             .clickable {
-                                val intent = Intent(context, DeviceDetailsActivity::class.java).apply {
-                                    putExtra("deviceAddress", device.address)
-                                }
+                                val intent =
+                                    Intent(context, DeviceDetailsActivity::class.java).apply {
+                                        putExtra("deviceAddress", device.address)
+                                    }
                                 context.startActivity(intent)
                             }
                             .padding(start = 8.dp)
@@ -420,9 +438,10 @@ fun DeviceList(devices: List<Pair<BluetoothDevice, Int>>) {
                         text = "MAC address : ${device.address}",
                         modifier = Modifier
                             .clickable {
-                                val intent = Intent(context, DeviceDetailsActivity::class.java).apply {
-                                    putExtra("deviceAddress", device.address)
-                                }
+                                val intent =
+                                    Intent(context, DeviceDetailsActivity::class.java).apply {
+                                        putExtra("deviceAddress", device.address)
+                                    }
                                 context.startActivity(intent)
                             }
                             .padding(start = 8.dp)
@@ -439,4 +458,11 @@ fun DeviceList(devices: List<Pair<BluetoothDevice, Int>>) {
             Spacer(modifier = Modifier.height(20.dp))
         }
     }
+}
+
+@Composable
+fun calculateColorForRssi(rssi: Int): Color {
+    // Calculer la valeur de couleur en fonction de la distance
+    val colorValue = 255 - ((rssi + 100) * 255 / 100)
+    return Color(colorValue, colorValue, 255)
 }
