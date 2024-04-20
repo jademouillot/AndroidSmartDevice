@@ -76,10 +76,15 @@ class ScanActivityBLE : ComponentActivity() {
             //Log.e("ScanCallbackbiis", "Scancallback fonction : ${result.device.name}")
             Log.e("ScanCallbackbiis", "Scancallback fonction : ")
             val device = result.device
-            if (!detectedDevices.contains(device)) {
-                detectedDevices.add(device)
+            val rssi = result.rssi // Obtenez le RSSI de l'appareil
+            val deviceWithRssi = Pair(device, rssi) // Créez une paire avec l'appareil et le RSSI
+            if(device.name != null) {
+                if (!detectedDevices.contains(deviceWithRssi)) {
+                    detectedDevices.add(deviceWithRssi)
+                //}else{
+                  //  detectedDevices.
+                }
             }
-
         }
         override fun onScanFailed(errorCode: Int) {
             super.onScanFailed(errorCode)
@@ -156,7 +161,7 @@ class ScanActivityBLE : ComponentActivity() {
         bluetoothAdapter?.bluetoothLeScanner
     }
 
-    private var detectedDevices: MutableList<BluetoothDevice> = mutableListOf()
+    private var detectedDevices: MutableList<Pair<BluetoothDevice, Int>> = mutableListOf()
 
     private val SCANPERIOD: Long = 10000
 
@@ -269,7 +274,7 @@ class ScanActivityBLE : ComponentActivity() {
                         Log.e("else","else")
                         bluetoothLeScanner?.stopScan(leScanCallback)
                     }
-            DeviceList(devices = detectedDevices)
+            //DeviceList(devices = detectedDevices)
         }
     }
 
@@ -380,21 +385,58 @@ fun TopBarBLE(title: String) {
 
 @SuppressLint("MissingPermission")
 @Composable
-fun DeviceList(devices: List<BluetoothDevice>) {
+fun DeviceList(devices: List<Pair<BluetoothDevice, Int>>) {
     var detectedDevices by remember { mutableStateOf(devices) } // Initialisation de detectedDevices avec remember
     val context = LocalContext.current
-    Text(text = "Appareils détectés :")
+    //Text(text = "Appareils détectés :")
+    //Spacer(modifier = Modifier.width(20.dp))
     LazyColumn {
-        items(detectedDevices) { device ->
-            Text(
-                text = device.address ?: "Unknown device",
-                modifier = Modifier.clickable {
-                    val intent = Intent(context, DeviceDetailsActivity::class.java).apply {
-                        putExtra("device", device.address)
-                    }
-                    context.startActivity(intent)
+        items(detectedDevices) { (device, rssi) ->
+            Row {
+                Text(
+                    text = "RSSI: $rssi",
+                    modifier = Modifier
+                        .clickable {
+                            val intent = Intent(context, DeviceDetailsActivity::class.java).apply {
+                                putExtra("deviceAddress", device.address)
+                            }
+                            context.startActivity(intent)
+                        }
+                        .padding(start = 8.dp)
+                )
+                Column {
+                    Text(
+                        text = "Name : ${device.name}",
+                        modifier = Modifier
+                            .clickable {
+                                val intent = Intent(context, DeviceDetailsActivity::class.java).apply {
+                                    putExtra("deviceAddress", device.address)
+                                }
+                                context.startActivity(intent)
+                            }
+                            .padding(start = 8.dp)
+                    )
+                    Text(
+                        text = "MAC address : ${device.address}",
+                        modifier = Modifier
+                            .clickable {
+                                val intent = Intent(context, DeviceDetailsActivity::class.java).apply {
+                                    putExtra("deviceAddress", device.address)
+                                }
+                                context.startActivity(intent)
+                            }
+                            .padding(start = 8.dp)
+                    )
                 }
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth() // Prend toute la largeur disponible
+                    .height(1.dp) // Hauteur de la barre
+                    .background(Color.Blue) // Couleur bleue
             )
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }

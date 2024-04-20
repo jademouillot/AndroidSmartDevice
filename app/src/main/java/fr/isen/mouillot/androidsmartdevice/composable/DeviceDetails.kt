@@ -1,6 +1,7 @@
 package fr.isen.mouillot.androidsmartdevice.composable
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Box
@@ -18,9 +19,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import fr.isen.mouillot.androidsmartdevice.R
@@ -57,27 +61,38 @@ fun DeviceDetails(deviceName: String) {
         Spacer(modifier = Modifier.height(16.dp))
         Row{
             val imageResource = painterResource(id = R.drawable.lamp)
+            var clicked_fimage by remember { mutableStateOf(false) }
+            var clicked_simage by remember { mutableStateOf(false) }
+            var clicked_timage by remember { mutableStateOf(false) }
 
-            // Affichage de l'image
             Image(
                 painter = imageResource,
                 contentDescription = null, // Vous pouvez ajouter une description si nécessaire
-                modifier = Modifier.size(80.dp, 80.dp)
-                        .padding(start = 8.dp)
+                modifier = Modifier
+                    .size(80.dp, 80.dp)
+                    .padding(start = 8.dp)
+                    .clickable { clicked_fimage = !clicked_fimage },
+                colorFilter = if (clicked_fimage) ColorFilter.tint(Color(0xFF87CEEB)) else ColorFilter.tint(Color.White)
             )
             Spacer(modifier = Modifier.width(16.dp))
             Image(
                 painter = imageResource,
                 contentDescription = null, // Vous pouvez ajouter une description si nécessaire
-                modifier = Modifier.size(80.dp, 80.dp)
+                modifier = Modifier
+                    .size(80.dp, 80.dp)
                     .padding(start = 8.dp)
+                    .clickable { clicked_simage = !clicked_simage },
+                colorFilter = if (clicked_simage) ColorFilter.tint(Color(0xFF87CEEB)) else ColorFilter.tint(Color.White)
             )
             Spacer(modifier = Modifier.width(16.dp))
             Image(
                 painter = imageResource,
                 contentDescription = null, // Vous pouvez ajouter une description si nécessaire
-                modifier = Modifier.size(80.dp, 80.dp)
+                modifier = Modifier
+                    .size(80.dp, 80.dp)
                     .padding(start = 8.dp)
+                    .clickable { clicked_timage = !clicked_timage },
+                colorFilter = if (clicked_timage) ColorFilter.tint(Color(0xFF87CEEB)) else ColorFilter.tint(Color.White)
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -108,6 +123,63 @@ fun DeviceDetails(deviceName: String) {
             ) {
                 Text(
                     text = "RECEVOIR",
+                    style = TextStyle(fontSize = 17.sp),
+                    modifier = Modifier.padding(start = 8.dp) // Ajouter un espace à gauche
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row {
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.BottomStart
+            ) {
+                Text(
+                    text = "Nombre : ",
+                    style = TextStyle(fontSize = 17.sp),
+                    modifier = Modifier.padding(start = 8.dp) // Ajouter un espace à gauche
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.BottomStart
+            ) {
+                Text(
+                    text = "nombre",
+                    style = TextStyle(fontSize = 22.sp),
+                    modifier = Modifier.padding(start = 8.dp) // Ajouter un espace à gauche
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+        Row {
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.BottomStart
+            ) {
+                Text(
+                    text = "Recevoir la donnée du compteur",
+                    style = TextStyle(fontSize = 17.sp),
+                    modifier = Modifier.padding(start = 8.dp) // Ajouter un espace à gauche
+                )
+            }
+            // CheckBox
+            Checkbox(
+                checked = isCheckedState.value,
+                onCheckedChange = { isCheckedState.value = it },
+                modifier = Modifier
+                    .size(24.dp) // Taille du carré
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.BottomStart
+            ) {
+                Text(
+                    text = "S'ABONNER",
                     style = TextStyle(fontSize = 17.sp),
                     modifier = Modifier.padding(start = 8.dp) // Ajouter un espace à gauche
                 )
