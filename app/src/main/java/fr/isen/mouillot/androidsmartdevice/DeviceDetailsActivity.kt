@@ -66,6 +66,7 @@ class DeviceDetailsActivity : ComponentActivity() {
                         if (device != null) {
                             connectToDevice(device)
                         }
+
                     }
                 }
             }
