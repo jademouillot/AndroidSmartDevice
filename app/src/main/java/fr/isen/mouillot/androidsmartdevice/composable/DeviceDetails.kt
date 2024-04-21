@@ -27,10 +27,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import fr.isen.mouillot.androidsmartdevice.ImageClickListener
+import fr.isen.mouillot.androidsmartdevice.ImageId
 import fr.isen.mouillot.androidsmartdevice.R
 
 @Composable
-fun DeviceDetails(deviceName: String) {
+fun DeviceDetails(deviceName: String, clickListener: ImageClickListener) {
     val isCheckedState = remember { mutableStateOf(false) }
     Column {
         // Ajoutez d'autres détails de l'appareil ici si nécessaire
@@ -71,7 +73,10 @@ fun DeviceDetails(deviceName: String) {
                 modifier = Modifier
                     .size(80.dp, 80.dp)
                     .padding(start = 8.dp)
-                    .clickable { clicked_fimage = !clicked_fimage },
+                    .clickable {
+                        clicked_fimage = !clicked_fimage
+                        clickListener.onImageClicked(ImageId.FIRST_IMAGE)
+                    },
                 colorFilter = if (clicked_fimage) ColorFilter.tint(Color(0xFF87CEEB)) else ColorFilter.tint(Color.White)
             )
             Spacer(modifier = Modifier.width(16.dp))
@@ -81,7 +86,10 @@ fun DeviceDetails(deviceName: String) {
                 modifier = Modifier
                     .size(80.dp, 80.dp)
                     .padding(start = 8.dp)
-                    .clickable { clicked_simage = !clicked_simage },
+                    .clickable {
+                        clicked_simage = !clicked_simage
+                        clickListener.onImageClicked(ImageId.SECOND_IMAGE)
+                    },
                 colorFilter = if (clicked_simage) ColorFilter.tint(Color(0xFF87CEEB)) else ColorFilter.tint(Color.White)
             )
             Spacer(modifier = Modifier.width(16.dp))
@@ -91,7 +99,10 @@ fun DeviceDetails(deviceName: String) {
                 modifier = Modifier
                     .size(80.dp, 80.dp)
                     .padding(start = 8.dp)
-                    .clickable { clicked_timage = !clicked_timage },
+                    .clickable {
+                        clicked_timage = !clicked_timage
+                        clickListener.onImageClicked(ImageId.THIRD_IMAGE)
+                    },
                 colorFilter = if (clicked_timage) ColorFilter.tint(Color(0xFF87CEEB)) else ColorFilter.tint(Color.White)
             )
         }
