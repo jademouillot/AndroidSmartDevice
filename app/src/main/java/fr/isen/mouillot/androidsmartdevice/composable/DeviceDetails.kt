@@ -1,5 +1,6 @@
 package fr.isen.mouillot.androidsmartdevice.composable
 
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -25,15 +26,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import fr.isen.mouillot.androidsmartdevice.ImageClickListener
 import fr.isen.mouillot.androidsmartdevice.ImageId
 import fr.isen.mouillot.androidsmartdevice.R
 
+interface CheckboxListener {
+    fun onCheckboxChecked(checked: Boolean)
+}
+
+
 @Composable
-fun DeviceDetails(deviceName: String, clickListener: ImageClickListener) {
-    val isCheckedState = remember { mutableStateOf(false) }
+fun DeviceDetails(deviceName: String, clickListener: ImageClickListener, listenercheckbox: CheckboxListener) {
+
+    var isChecked by remember { mutableStateOf(false) }
+    var isChecked1 by remember { mutableStateOf(false) }
     Column {
         // Ajoutez d'autres détails de l'appareil ici si nécessaire
         Spacer(modifier = Modifier.height(16.dp))
@@ -118,10 +127,16 @@ fun DeviceDetails(deviceName: String, clickListener: ImageClickListener) {
                     modifier = Modifier.padding(start = 8.dp) // Ajouter un espace à gauche
                 )
             }
+            val context = LocalContext.current
             // CheckBox
             Checkbox(
-                checked = isCheckedState.value,
-                onCheckedChange = { isCheckedState.value = it },
+                checked = isChecked,
+                        onCheckedChange = { checked ->
+                    isChecked = checked
+                    listenercheckbox.onCheckboxChecked(checked)
+                    val message = if (checked) "RECEVOIR activé" else "RECEVOIR désactivé"
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                },
                 modifier = Modifier
                     .size(24.dp) // Taille du carré
             )
@@ -157,7 +172,7 @@ fun DeviceDetails(deviceName: String, clickListener: ImageClickListener) {
                 contentAlignment = Alignment.BottomStart
             ) {
                 Text(
-                    text = "nombre",
+                    text = "",
                     style = TextStyle(fontSize = 22.sp),
                     modifier = Modifier.padding(start = 8.dp) // Ajouter un espace à gauche
                 )
@@ -175,10 +190,15 @@ fun DeviceDetails(deviceName: String, clickListener: ImageClickListener) {
                     modifier = Modifier.padding(start = 8.dp) // Ajouter un espace à gauche
                 )
             }
+            val context = LocalContext.current
             // CheckBox
             Checkbox(
-                checked = isCheckedState.value,
-                onCheckedChange = { isCheckedState.value = it },
+                checked = isChecked1,
+                onCheckedChange = { checked1 ->
+                    isChecked1 = checked1
+                    val message = if (checked1) "S'ABONNER activé" else "S'ABONNER désactivé"
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                },
                 modifier = Modifier
                     .size(24.dp) // Taille du carré
             )

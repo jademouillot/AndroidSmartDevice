@@ -2,11 +2,15 @@ package fr.isen.mouillot.androidsmartdevice
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.annotation.TargetApi
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
+import android.bluetooth.BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
@@ -46,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
+import fr.isen.mouillot.androidsmartdevice.composable.CheckboxListener
 import fr.isen.mouillot.androidsmartdevice.composable.DeviceDetails
 import fr.isen.mouillot.androidsmartdevice.ui.theme.AndroidSmartDeviceTheme
 import java.util.UUID
@@ -62,12 +67,24 @@ interface ImageClickListener {
 
 private const val TAG = "BluetoothLeService"
 
-class DeviceDetailsActivity : ComponentActivity(), ImageClickListener {
+class DeviceDetailsActivity : ComponentActivity(), ImageClickListener, CheckboxListener {
+
+    private fun BluetoothGattCharacteristic.isIndicatable(): Boolean =
+        containsProperty(BluetoothGattCharacteristic.PROPERTY_INDICATE)
+
+    private fun BluetoothGattCharacteristic.isNotifiable(): Boolean =
+        containsProperty(BluetoothGattCharacteristic.PROPERTY_NOTIFY)
+
+    fun BluetoothGattCharacteristic.containsProperty(property: Int): Boolean =
+        properties and property != 0
 
     //private var bluetoothAdapter: BluetoothAdapter? = null
 
     private var gatt: BluetoothGatt? = null
     private var isConnecting by mutableStateOf(true) // État de la connexion
+
+    private var characteristicValue: ByteArray? = byteArrayOf()
+    private var characteristic: BluetoothGattCharacteristic? = null
 
     private var services: List<BluetoothGattService>? = null
 
@@ -79,8 +96,6 @@ class DeviceDetailsActivity : ComponentActivity(), ImageClickListener {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothManager.adapter
     }
-
-
 
     @SuppressLint("MissingPermission")
     @RequiresApi(Build.VERSION_CODES.O)
@@ -101,7 +116,7 @@ class DeviceDetailsActivity : ComponentActivity(), ImageClickListener {
                         TopBarDevice("AndroidSmartDevice")
                         DeviceDetailsScreen()
                         if (device?.name != null) {
-                            DeviceDetails(device.name!!, this@DeviceDetailsActivity)
+                            DeviceDetails(device.name!!, this@DeviceDetailsActivity, this@DeviceDetailsActivity)
                         }
                         if (device != null) {
                             connectToDevice(device)
@@ -297,6 +312,100 @@ class DeviceDetailsActivity : ComponentActivity(), ImageClickListener {
         }
     }
 
+    @SuppressLint("MissingPermission")
+    fun writeDescriptor(descriptor: BluetoothGattDescriptor, payload: ByteArray) {
+        gatt?.let { gatt ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                gatt.writeDescriptor(descriptor, payload)
+            } else {
+                // Fall back to deprecated version of writeDescriptor for Android <13
+                gatt.legacyDescriptorWrite(descriptor, payload)
+            }
+        } ?: error("Not connected to a BLE device!")
+    }
+    @SuppressLint("MissingPermission")
+    @TargetApi(Build.VERSION_CODES.S)
+    @Suppress("DEPRECATION")
+    private fun BluetoothGatt.legacyDescriptorWrite(
+        descriptor: BluetoothGattDescriptor,
+        value: ByteArray
+    ) {
+        descriptor.value = value
+        writeDescriptor(descriptor)
+    }
+
+    @SuppressLint("MissingPermission")
+    fun enableNotifications(characteristic: BluetoothGattCharacteristic) {
+        val cccdUuid = UUID.fromString(ENABLE_NOTIFICATION_VALUE.toString())
+        val payload = when {
+            characteristic.isIndicatable() -> BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
+            characteristic.isNotifiable() -> BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            else -> {
+                Log.e("ConnectionManager", "${characteristic.uuid} doesn't support notifications/indications")
+                return
+            }
+        }
+
+        characteristic.getDescriptor(cccdUuid)?.let { cccDescriptor ->
+            if (gatt?.setCharacteristicNotification(characteristic, true) == false) {
+                Log.e("ConnectionManager", "setCharacteristicNotification failed for ${characteristic.uuid}")
+                return
+            }
+            writeDescriptor(cccDescriptor, payload)
+        } ?: Log.e("ConnectionManager", "${characteristic.uuid} doesn't contain the CCC descriptor!")
+    }
+
+    @SuppressLint("MissingPermission")
+    fun disableNotifications(characteristic: BluetoothGattCharacteristic) {
+        if (!characteristic.isNotifiable() && !characteristic.isIndicatable()) {
+            Log.e("ConnectionManager", "${characteristic.uuid} doesn't support indications/notifications")
+            return
+        }
+
+        val cccdUuid = UUID.fromString(DISABLE_NOTIFICATION_VALUE.toString())
+        characteristic.getDescriptor(cccdUuid)?.let { cccDescriptor ->
+            if (gatt?.setCharacteristicNotification(characteristic, false) == false) {
+                Log.e("ConnectionManager", "setCharacteristicNotification failed for ${characteristic.uuid}")
+                return
+            }
+            writeDescriptor(cccDescriptor, BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE)
+        } ?: Log.e("ConnectionManager", "${characteristic.uuid} doesn't contain the CCC descriptor!")
+    }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    @Deprecated("Deprecated for Android 13+")
+    @Suppress("DEPRECATION")
+    fun onCharacteristicChanged(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic
+    ) {
+        with(characteristic) {
+            Log.i("BluetoothGattCallback", "Characteristic $uuid changed | value: ${value.toHexString()}")
+        }
+    }
+    @OptIn(ExperimentalStdlibApi::class)
+    fun onCharacteristicChanged(
+        gatt: BluetoothGatt,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray
+    ) {
+        val newValueHex = value.toHexString()
+        with(characteristic) {
+            Log.i("BluetoothGattCallback", "Characteristic $uuid changed | value: $newValueHex")
+        }
+    }
+
+    override fun onCheckboxChecked(checked: Boolean) {
+        // Appeler cette fonction lorsque la checkbox est cochée ou décochée
+        if (checked) {
+            characteristic = gatt?.services?.get(2)?.characteristics?.get(1)
+            characteristic?.let { enableNotifications(it) }
+        } else {
+            characteristic = gatt?.services?.get(2)?.characteristics?.get(1)
+            characteristic?.let { disableNotifications(it) }
+        }
+    }
+
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -325,4 +434,3 @@ fun TopBarDevice(title: String) {
             )
     }
 }
-
