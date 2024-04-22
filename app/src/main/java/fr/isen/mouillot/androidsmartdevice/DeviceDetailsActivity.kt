@@ -25,6 +25,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
+import androidx.lifecycle.ViewModel
 import fr.isen.mouillot.androidsmartdevice.composable.CheckboxListener
 import fr.isen.mouillot.androidsmartdevice.composable.DeviceDetails
 import fr.isen.mouillot.androidsmartdevice.ui.theme.AndroidSmartDeviceTheme
@@ -87,6 +89,9 @@ class DeviceDetailsActivity : ComponentActivity(), ImageClickListener, CheckboxL
     private var characteristic: BluetoothGattCharacteristic? = null
 
     private var services: List<BluetoothGattService>? = null
+    private var service: BluetoothGattService? = null
+
+    private var characteristicrec: BluetoothGattCharacteristic? = null
 
     private var isFirstImageClicked: Boolean = false // Variable pour suivre si la première image a été cliquée
     private var isSecondImageClicked: Boolean = false // Variable pour suivre si la première image a été cliquée
@@ -233,6 +238,29 @@ class DeviceDetailsActivity : ComponentActivity(), ImageClickListener, CheckboxL
                 Log.e("charac","Erreur lors de la découverte des services")
             }
         }
+        @OptIn(ExperimentalStdlibApi::class)
+        @Deprecated("Deprecated for Android 13+")
+        @Suppress("DEPRECATION")
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic
+        ) {
+            with(characteristic) {
+                Log.i("BluetoothGattCallback", "Characteristic $uuid changed | value: ${value.toHexString()}")
+            }
+        }
+
+        @OptIn(ExperimentalStdlibApi::class)
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray
+        ) {
+            val newValueHex = value.toHexString()
+            with(characteristic) {
+                Log.i("BluetoothGattCallback", "Characteristic $uuid changed | value: $newValueHex")
+            }
+        }
     }
 
     // Méthode pour écrire dans la caractéristique une fois la connexion établie et les services découverts
@@ -242,16 +270,16 @@ class DeviceDetailsActivity : ComponentActivity(), ImageClickListener, CheckboxL
         if (gatt != null) {
             // Récupérez le troisième service
             Log.e("write1","write1")
-            val service = gatt?.services?.get(2)
+            service = gatt?.services?.get(2)
             // Troisième service (index 2)
             Log.e("write2","write2")
 
             // Vérifiez si le service et ses caractéristiques sont valides
-            if (service != null && service.characteristics.isNotEmpty()) {
+            if (service != null && service!!.characteristics.isNotEmpty()) {
                 Log.e("write3","write3")
                 // Récupérez la première caractéristique du troisième service
-                val characteristic = service.characteristics[0] // Première caractéristique du troisième service
-
+                val characteristic = service!!.characteristics[0] // Première caractéristique du troisième service
+                characteristicrec = service!!.characteristics[1]
                 // Vérifiez si la caractéristique est valide
                 if (characteristic != null) {
                     // Écrivez la valeur dans la caractéristique
@@ -336,7 +364,8 @@ class DeviceDetailsActivity : ComponentActivity(), ImageClickListener, CheckboxL
 
     @SuppressLint("MissingPermission")
     fun enableNotifications(characteristic: BluetoothGattCharacteristic) {
-        val cccdUuid = UUID.fromString(ENABLE_NOTIFICATION_VALUE.toString())
+        Log.e("enable","enablenotif")
+        val cccdUuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         val payload = when {
             characteristic.isIndicatable() -> BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
             characteristic.isNotifiable() -> BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
@@ -351,6 +380,7 @@ class DeviceDetailsActivity : ComponentActivity(), ImageClickListener, CheckboxL
                 Log.e("ConnectionManager", "setCharacteristicNotification failed for ${characteristic.uuid}")
                 return
             }
+            Log.e("writedescr","writedescriptor")
             writeDescriptor(cccDescriptor, payload)
         } ?: Log.e("ConnectionManager", "${characteristic.uuid} doesn't contain the CCC descriptor!")
     }
@@ -362,7 +392,7 @@ class DeviceDetailsActivity : ComponentActivity(), ImageClickListener, CheckboxL
             return
         }
 
-        val cccdUuid = UUID.fromString(DISABLE_NOTIFICATION_VALUE.toString())
+        val cccdUuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         characteristic.getDescriptor(cccdUuid)?.let { cccDescriptor ->
             if (gatt?.setCharacteristicNotification(characteristic, false) == false) {
                 Log.e("ConnectionManager", "setCharacteristicNotification failed for ${characteristic.uuid}")
@@ -372,40 +402,16 @@ class DeviceDetailsActivity : ComponentActivity(), ImageClickListener, CheckboxL
         } ?: Log.e("ConnectionManager", "${characteristic.uuid} doesn't contain the CCC descriptor!")
     }
 
-    @OptIn(ExperimentalStdlibApi::class)
-    @Deprecated("Deprecated for Android 13+")
-    @Suppress("DEPRECATION")
-    fun onCharacteristicChanged(
-        gatt: BluetoothGatt,
-        characteristic: BluetoothGattCharacteristic
-    ) {
-        with(characteristic) {
-            Log.i("BluetoothGattCallback", "Characteristic $uuid changed | value: ${value.toHexString()}")
-        }
-    }
-    @OptIn(ExperimentalStdlibApi::class)
-    fun onCharacteristicChanged(
-        gatt: BluetoothGatt,
-        characteristic: BluetoothGattCharacteristic,
-        value: ByteArray
-    ) {
-        val newValueHex = value.toHexString()
-        with(characteristic) {
-            Log.i("BluetoothGattCallback", "Characteristic $uuid changed | value: $newValueHex")
-        }
-    }
-
     override fun onCheckboxChecked(checked: Boolean) {
+        Log.e("checkbox","checkboxchecked")
         // Appeler cette fonction lorsque la checkbox est cochée ou décochée
         if (checked) {
-            characteristic = gatt?.services?.get(2)?.characteristics?.get(1)
-            characteristic?.let { enableNotifications(it) }
+            characteristicrec?.let { enableNotifications(it) }
         } else {
             characteristic = gatt?.services?.get(2)?.characteristics?.get(1)
             characteristic?.let { disableNotifications(it) }
         }
     }
-
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

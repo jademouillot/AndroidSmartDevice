@@ -172,7 +172,7 @@ fun DeviceDetails(deviceName: String, clickListener: ImageClickListener, listene
                 contentAlignment = Alignment.BottomStart
             ) {
                 Text(
-                    text = "",
+                    text = "nombre",
                     style = TextStyle(fontSize = 22.sp),
                     modifier = Modifier.padding(start = 8.dp) // Ajouter un espace à gauche
                 )
